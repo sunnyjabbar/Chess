@@ -32,7 +32,7 @@ The game runs directly in a web browser without requiring any additional softwar
 ## How to Run the Game
 
 1. Download or clone this repository.
-2. Open the project folder in Visual Studio Code or open the html file and it will open in your browser.
+2. Open the project folder in Visual Studio Code or open `chess.html`  and it will open in your browser.
 3. Open `chess.html`.
 4. Run the file
 5. The chess game will open in your web browser.
