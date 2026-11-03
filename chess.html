@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JavaScript Chess Game</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+  <style>
+    :root {
+    --light: #f0d9b5;
+    --dark: #b58863;
+    --selected: #f6f669;
+    --legal: #79b879;
+    --last-move: #d8c96c;
+    --background: #111827;
+    --panel: #1f2937;
+    --gold: #facc15;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 20px;
+  background: var(--background);
+  color: white;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+
+h1 {
+  margin: 4px 0 10px;
+  font-size: 50px;
+}
+
+#status {
+  min-height: 24px;
+  margin: 0 0 14px;
+  color: var(--gold);
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+#board {
+  display: grid;
+  grid-template-columns: repeat(8, min(9vw, 72px));
+  grid-template-rows: repeat(8, min(9vw, 72px));
+  border: 1px solid #263238;
+  user-select: none;
+}
+
+.square {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-family: "DejaVu Sans", "Arial Unicode MS", serif;
+  font-size: clamp(30px, 7vw, 46px);
+  line-height: 1;
+}
+
+.light { background: var(--light); }
+.dark { background: var(--dark); }
+.last-move { background: var(--last-move) !important; }
+.selected { background: var(--selected) !important; }
+
+.piece.white {
+  color: #fff;
+  text-shadow: 1px 1px 2px #222, -1px -1px 2px #222;
+}
+
+.piece.black {
+  color: #202020;
+  text-shadow: 0 0 1px #eee;
+}
+
+.legal-dot {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--legal);
+  opacity: 0.9;
+}
+
+.check-ring {
+  position: absolute;
+  inset: 5px;
+  border: 4px solid #ff1744;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.coordinate {
+  position: absolute;
+  color: #555;
+  font: bold 9px Arial, sans-serif;
+  pointer-events: none;
+}
+
+.rank-label { top: 3px; left: 4px; }
+.file-label { right: 4px; bottom: 3px; }
+
+aside {
+  width: 220px;
+  padding: 12px;
+  background: var(--panel);
+  text-align: center;
+}
+
+aside h2 {
+  margin: 8px 0;
+  font-size: 12px;
+}
+
+.side-label {
+  margin: 15px 0 3px;
+  color: var(--gold);
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.side-value {
+  min-height: 22px;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+
+#history {
+  width: 100%;
+  height: 360px;
+  padding: 6px;
+  overflow-y: auto;
+  background: rgb(31, 41, 55);
+  color: #111;
+  font: 12px Consolas, monospace;
+  text-align: left;
+  white-space: pre;
+}
+
+.controls {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 14px 0 10px;
+}
+
+button {
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 3px;
+  background: #546e7a;
+  color: white;
+  cursor: pointer;
+  font: bold 20px Arial, sans-serif;
+}
+
+button:hover { background: #78909c; }
+
+.hint {
+  margin: 0;
+  color: #cfd8dc;
+  font-size: 10px;
+}
+
+dialog {
+  border: 0;
+  border-radius: 6px;
+  background: var(--panel);
+  color: white;
+  text-align: center;
+}
+
+dialog::backdrop { background: rgb(0 0 0 / 55%); }
+
+dialog p { font-weight: bold; }
+
+.promotion-options {
+  display: grid;
+  gap: 5px;
+}
+
+  </style>
+</head>
+<body>
+  <h1>CHESS GAME</h1>
+  <div id="status">White to Move</div>
+  <main class="main">
+    <div id="board" aria-label="Chessboard"></div>
+<aside>
+  <h2>GAME INFORMATION</h2>
+  <div id="turn" class="side-value"></div>
+
+  <div class="side-label">Captured by White</div>
+  <div id="capturedWhite" class="side-value">None</div>
+
+  <div class="side-label">Captured by Black</div>
+  <div id="capturedBlack" class="side-value">None</div>
+
+  <h2 style="margin-top:20px">MOVE HISTORY</h2>
+  <div id="history"></div>
+</aside>
+
+  </main>
+  <div class="controls">
+    <button id="newGame">New Game</button>
+    <button id="undoMove">Undo Move</button>
+    <button id="flipBoard">Flip Board</button>
+    <button id="claimDraw">Claim Draw</button>
+  </div>
+  <p class="hint">Click a piece, then click a highlighted square.</p>
+  <dialog id="promotionDialog">
+    <p>Choose a piece for promotion</p>
+    <div class="promotion-options">
+      <button data-piece="q">Queen</button>
+      <button data-piece="r">Rook</button>
+      <button data-piece="b">Bishop</button>
+      <button data-piece="n">Knight</button>
+      <button id="cancelPromotion">Cancel</button>
+    </div>
+  </dialog>
+  <script>
+    const SQUARE = 72;
+    const PIECES = {
+      K: "♔", Q: "♕", R: "♖", B: "♗", N: "♘", P: "♙",
+      k: "♚", q: "♛", r: "♜", b: "♝", n: "♞", p: "♟"
+    };
+
+    const game = new Chess();
+    const boardElement = document.getElementById("board");
+    const statusElement = document.getElementById("status");
+    const turnElement = document.getElementById("turn");
+    const historyElement = document.getElementById("history");
+    const capturedWhiteElement = document.getElementById("capturedWhite");
+    const capturedBlackElement = document.getElementById("capturedBlack");
+    const promotionDialog = document.getElementById("promotionDialog");
+
+    let selected = null;
+    let flipped = false;
+    let gameOver = false;
+    let claimedDraw = false;
+    let moveHistory = [];
+    let pendingPromotion = null;
+
+    function displayToSquare(row, col) {
+      const file = flipped ? 7 - col : col;
+      const rank = flipped ? row : 7 - row;
+      return "abcdefgh"[file] + (rank + 1);
+    }
+
+    function squareToDisplay(square) {
+      const file = "abcdefgh".indexOf(square[0]);
+      const rank = Number(square[1]) - 1;
+      return flipped ? [rank, 7 - file] : [7 - rank, file];
+    }
+
+    function drawBoard() {
+      boardElement.replaceChildren();
+
+      const legalTargets = new Set(
+        selected ? game.moves({ square: selected, verbose: true }).map(move => move.to) : []
+      );
+      const lastMove = game.history({ verbose: true }).at(-1);
+
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          const squareName = displayToSquare(row, col);
+          const square = document.createElement("div");
+          const isLight = (row + col) % 2 === 0;
+
+          square.className = `square ${isLight ? "light" : "dark"}`;
+          square.dataset.square = squareName;
+
+          if (lastMove && (squareName === lastMove.from || squareName === lastMove.to)) {
+            square.classList.add("last-move");
+          }
+          if (squareName === selected) square.classList.add("selected");
+
+          if (legalTargets.has(squareName)) {
+            const dot = document.createElement("span");
+            dot.className = "legal-dot";
+            square.appendChild(dot);
+          }
+
+          const piece = game.get(squareName);
+          if (piece) {
+            const pieceElement = document.createElement("span");
+            pieceElement.className = `piece ${piece.color === "w" ? "white" : "black"}`;
+            pieceElement.textContent = PIECES[piece.color === "w"
+              ? piece.type.toUpperCase()
+              : piece.type];
+            square.appendChild(pieceElement);
+
+            if (piece.type === "k" && piece.color === game.turn() && game.in_check()) {
+              const ring = document.createElement("span");
+              ring.className = "check-ring";
+              square.appendChild(ring);
+            }
+          }
+
+          if (col === 0) {
+            const rankLabel = document.createElement("span");
+            rankLabel.className = "coordinate rank-label";
+            rankLabel.textContent = squareName[1];
+            square.appendChild(rankLabel);
+          }
+
+          if (row === 7) {
+            const fileLabel = document.createElement("span");
+            fileLabel.className = "coordinate file-label";
+            fileLabel.textContent = squareName[0];
+            square.appendChild(fileLabel);
+          }
+
+          square.addEventListener("click", () => boardClick(squareName));
+          boardElement.appendChild(square);
+        }
+      }
+    }
+
+    function boardClick(squareName) {
+      if (gameOver) return;
+
+      const piece = game.get(squareName);
+      if (piece && piece.color === game.turn()) {
+        selected = selected === squareName ? null : squareName;
+        drawBoard();
+        return;
+      }
+
+      if (!selected) return;
+
+      const choices = game.moves({ square: selected, verbose: true })
+        .filter(move => move.to === squareName);
+
+      if (!choices.length) {
+        selected = null;
+        drawBoard();
+        return;
+      }
+
+      if (choices.some(move => move.flags.includes("p"))) {
+        pendingPromotion = { from: selected, to: squareName };
+        promotionDialog.showModal();
+        return;
+      }
+
+      makeMove({ from: selected, to: squareName });
+    }
+
+    function makeMove(move) {
+      const result = game.move(move);
+      if (!result) return;
+
+      moveHistory = game.history();
+      selected = null;
+      claimedDraw = false;
+      updateDisplay();
+      checkGameOver();
+    }
+
+    function capturedPieces() {
+      const starting = { p: 8, n: 2, b: 2, r: 2, q: 1 };
+      const capturedWhite = [];
+      const capturedBlack = [];
+
+      for (const [type, count] of Object.entries(starting)) {
+        const whiteRemaining = game.board().flat().filter(
+          piece => piece && piece.color === "w" && piece.type === type
+        ).length;
+        const blackRemaining = game.board().flat().filter(
+          piece => piece && piece.color === "b" && piece.type === type
+        ).length;
+
+        for (let i = blackRemaining; i < count; i++) {
+          capturedWhite.push(PIECES[type]);
+        }
+        for (let i = whiteRemaining; i < count; i++) {
+          capturedBlack.push(PIECES[type.toUpperCase()]);
+        }
+      }
+
+      return { capturedWhite, capturedBlack };
+    }
+
+    function updateDisplay() {
+      drawBoard();
+
+      const player = game.turn() === "w" ? "White" : "Black";
+      statusElement.textContent = `${player} to Move${game.in_check() ? " - CHECK!" : ""}`;
+      turnElement.textContent = `Current Player: ${player}`;
+
+      const captured = capturedPieces();
+      capturedWhiteElement.textContent = captured.capturedWhite.join(" ") || "None";
+      capturedBlackElement.textContent = captured.capturedBlack.join(" ") || "None";
+
+      const rows = [];
+      for (let i = 0; i < moveHistory.length; i += 2) {
+        const number = `${Math.floor(i / 2) + 1}.`.padEnd(4);
+        const whiteMove = (moveHistory[i] || "").padEnd(8);
+        const blackMove = moveHistory[i + 1] || "";
+        rows.push(`${number}${whiteMove} ${blackMove}`);
+      }
+      historyElement.textContent = rows.join("\n");
+      historyElement.scrollTop = historyElement.scrollHeight;
+    }
+
+    function checkGameOver() {
+      if (game.in_checkmate()) {
+        const winner = game.turn() === "w" ? "Black" : "White";
+        gameOver = true;
+        statusElement.textContent = `CHECKMATE! ${winner} WINS!`;
+        alert(`Checkmate!\n${winner} wins!`);
+        return;
+      }
+
+      let reason = "";
+      if (game.in_stalemate()) reason = "Stalemate";
+      else if (game.insufficient_material()) reason = "Insufficient Material";
+      else if (game.in_draw()) reason = "Draw";
+      if (!reason) return;
+
+      gameOver = true;
+      statusElement.textContent = `DRAW - ${reason}`;
+      alert(`Game drawn: ${reason}`);
+    }
+
+    document.querySelectorAll("[data-piece]").forEach(button => {
+      button.addEventListener("click", () => {
+        const promotion = button.dataset.piece;
+        const pending = pendingPromotion;
+        promotionDialog.close();
+        pendingPromotion = null;
+
+        if (pending) {
+          makeMove({ from: pending.from, to: pending.to, promotion });
+        }
+      });
+    });
+
+    document.getElementById("cancelPromotion").addEventListener("click", () => {
+      promotionDialog.close();
+      pendingPromotion = null;
+      drawBoard();
+    });
+
+    promotionDialog.addEventListener("click", event => {
+      if (event.target === promotionDialog) {
+        promotionDialog.close();
+        pendingPromotion = null;
+        drawBoard();
+      }
+    });
+
+    document.getElementById("newGame").addEventListener("click", () => {
+      if (!confirm("Do you want to start a new game?")) return;
+      game.reset();
+      selected = null;
+      gameOver = false;
+      claimedDraw = false;
+      moveHistory = [];
+      updateDisplay();
+    });
+
+    document.getElementById("undoMove").addEventListener("click", () => {
+      if (!game.undo()) {
+        alert("There are no moves to undo.");
+        return;
+      }
+      moveHistory = game.history();
+      selected = null;
+      gameOver = false;
+      claimedDraw = false;
+      updateDisplay();
+    });
+
+    document.getElementById("flipBoard").addEventListener("click", () => {
+      flipped = !flipped;
+      selected = null;
+      drawBoard();
+    });
+
+    document.getElementById("claimDraw").addEventListener("click", () => {
+      if (gameOver) return;
+
+      if (game.in_threefold_repetition() || game.in_stalemate() || game.in_draw()) {
+        gameOver = true;
+        claimedDraw = true;
+        statusElement.textContent = "DRAW CLAIMED";
+        alert("The game has ended in a draw.");
+      } else {
+        alert("A draw cannot currently be claimed.");
+      }
+    });
+
+    updateDisplay();
+  </script>
+</body>
+</html>
